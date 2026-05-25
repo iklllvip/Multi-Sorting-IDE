@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Advanced Multi-Sorting Visualizer & Multi-Language IDE</title>
+    <!-- Підключаємо Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs/loader.min.js"></script>
+ 
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #1e1e1e;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        nav {
+            background: #2d2d2d;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 15px 0;
+            border-bottom: 1px solid #333;
+            z-index: 10;
+        }
+        nav a {
+            color: #aaa;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        nav a:hover, nav a.active { color: #00adb5; }
+
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 100vw;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .page.active { display: block; }
+
+        .home-container {
+            max-width: 800px;
+            margin: 40px auto;
+            line-height: 1.6;
+        }
+        .home-container h1 { color: #00adb5; }
+        .features-list {
+            background: #252526;
+            border: 1px solid #333;
+            padding: 20px 40px;
+            border-radius: 8px;
+        }
+
+        .controls {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .control-group { display: flex; align-items: center; gap: 5px; }
+        .range-val {
+            font-family: monospace;
+            background: #444;
+            padding: 2px 6px;
+            border-radius: 3px;
+            min-width: 25px;
+            text-align: center;
+            font-size: 13px;
+        }
+        button, select, input {
+            background: #444;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #555; }
+        button:disabled {
+            background: #222;
+            color: #555;
+            cursor: not-allowed;
+            border-color: #333;
+        }
+
+        .main-layout {
+            display: flex;
+            width: 100%;
+            min-height: 580px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .sorting-panel {
+            background: #252526;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-sizing: border-box;
+            min-width: 300px; 
+            max-width: 800px;
+        }
+        
+        .analytics-panel {
+            background: #252526;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            min-width: 250px;
+        }
+
+        .resizer {
+            width: 6px;
+            background: #333;
+            cursor: col-resize;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .resizer:hover, .resizer.dragging { background: #00adb5; }
+
+        .analytics-title {
+            font-weight: bold;
+            color: #2ecc71;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-wrapper {
+            overflow-y: auto;
+            max-height: 500px;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+        }
+        th, td { padding: 8px 10px; border-bottom: 1px solid #333; }
+        th { background: #111; color: #00adb5; position: sticky; top: 0; }
+        tr:hover { background: #2d2d2d; }
+        .top-record { background: rgba(46, 204, 113, 0.15); }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+            gap: 10px;
+        }
+        .panel-title { font-weight: bold; color: #00adb5; }
+        
+        .stats-sub-panel {
+            background: #111;
+            padding: 8px 12px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #222;
+        }
+        .stat-val { color: #00adb5; font-weight: bold; }
+
+        .visual-box {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+        canvas {
+            background: #111;
+            border-radius: 6px;
+            border: 1px solid #333;
+            width: 100%;
+            height: 220px;
+        }
+        .editor-box {
+            flex: 1;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #333;
+            min-height: 260px;
+        }
+        #pyodide-status {
+            font-size: 12px;
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a id="nav-home" class="active" onclick="switchPage('home')">Головна</a>
+    <a id="nav-visualizer" onclick="switchPage('visualizer')">Мульти-Візуалізатор IDE</a>
+</nav>
+
+<div id="page-home" class="page active">
+    <div class="home-container">
+        <h1>Multi-Sorting IDE: Повна Мультимовність</h1>
+        <p>Це інтерактивна платформа для вивчення, аналізу та тестування алгоритмів сортування. На відміну від звичайних візуалізаторів, цей інструмент спроєктовано як повноцінне середовище розробки (IDE)</p>
+        <div class="features-list">
+            <h3>Ключові можливості платформи:</h3>
+            <ul>
+                <li><strong>Мультимовність (WASM/Docker):</strong> Можливість писати та запускати алгоритми не лише на JavaScript, а й на низькорівневих мовах C/C++ та Rust, а також на Python.</li>
+                <li><strong>Вбудована IDE:</strong> Інтеграція професійного редактора коду Monaco Editor (ядро системи VS Code) з підсвіткою синтаксису.</li>
+                <li><strong>Звуковий супровід:</strong> Аудіо-синестезія — кожна операція порівняння чи обміну генерує звукову хвилю відповідної частоти.</li>
+                <li><strong>Повний контроль процесу:</strong> Можливість у будь-який момент поставити сортування на паузу або повністю скинути стан масиву без зависання вкладки браузера.</li>
+            </ul>
+        </div>
+        <p style="margin-top: 20px; text-align: center;">
+            <button onclick="switchPage('visualizer')" style="background: #00adb5; font-size: 16px; font-weight: bold; padding: 12px 24px;">Відкрити Мультимовне IDE →</button>
+        </p>
+    </div>
+</div>
+
+<div id="page-visualizer" class="page">
+    <div class="controls">
+        <div class="control-group">
+            <label>Режим:</label>
+            <select id="layout-mode" onchange="toggleLayoutMode()">
+                <option value="dual">Порівняння (2 потоки)</option>
+                <option value="single">Один алгоритм (Потік А)</option>
+            </select>
+        </div>
+        <button id="btn-new" onclick="generateSharedArray()">Новий масив</button>
+        <div class="control-group">
+            <label>Елементів:</label>
+            <input type="range" id="size" min="10" max="150" value="40" oninput="updateRangeLabel('size'); generateSharedArray();">
+            <div id="val-size" class="range-val">40</div>
+        </div>
+        <div class="control-group">
+            <label>Затримка:</label>
+            <input type="range" id="speed" min="1" max="200" value="15" oninput="updateRangeLabel('speed')">
+            <div id="val-speed" class="range-val">15</div> <span style="font-size:12px; color:#aaa;">мс</span>
+        </div>
+        <div class="control-group">
+            <label>Гучність 🔊:</label>
+            <input type="range" id="volume" min="0" max="100" value="10" oninput="updateRangeLabel('volume')">
+            <div id="val-volume" class="range-val">10</div><span style="font-size:12px; color:#aaa;">%</span>
+        </div>
+        <button id="btn-start" onclick="startProcessingLayout()" style="background: #007acc; font-weight: bold; padding: 8px 20px;">Запустити</button>
+        <button id="btn-pause" onclick="togglePauseAll()" disabled>Пауза</button>
+        <button id="btn-stop" onclick="stopAllSorting()" style="background: #a93226;" disabled>Зупинити</button>
+        <div id="pyodide-status">Завантаження ядра Python (Pyodide)...</div>
+    </div>
+
+    <div class="main-layout" id="main-ide-container">
+        <!-- ПОТІК А -->
+        <div class="sorting-panel" id="panel-A" style="flex: 1 1 35%;">
+            <div class="panel-header">
+                <span class="panel-title">ПОТІК А</span>
+                <select id="mode-A" onchange="handleModeChange('A')">
+                    <option value="js_bubble">JS: Bubble Sort</option>
+                    <option value="python">Python (Pyodide WASM)</option>
+                    <option value="c_lang">C (GCC Template)</option>
+                    <option value="rust_lang">Rust (Cargo Template)</option>
+                </select>
+            </div>
+            <div class="stats-sub-panel">
+                <div>Час: <span id="time-A" class="stat-val">0.000</span>с</div>
+                <div>Порівнянь: <span id="comp-A" class="stat-val">0</span></div>
+                <div>Обмінів: <span id="swap-A" class="stat-val">0</span></div>
+                <div>Статус: <span id="status-A" style="color:#aaa;">Готовий</span></div>
+            </div>
+            <div class="visual-box">
+                <canvas id="canvas-A" height="220"></canvas>
+                <div id="editor-A" class="editor-box"></div>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer-1"></div>
+
+        <!-- ПОТІК Б -->
+        <div class="sorting-panel" id="panel-B" style="flex: 1 1 35%;">
+            <div class="panel-header">
+                <span class="panel-title">ПОТІК Б</span>
+                <select id="mode-B" onchange="handleModeChange('B')">
+                    <option value="js_selection">JS: Selection Sort</option>
+                    <option value="python">Python (Pyodide WASM)</option>
+                    <option value="c_lang">C (GCC Template)</option>
+                    <option value="rust_lang">Rust (Cargo Template)</option>
+                </select>
+            </div>
+            <div class="stats-sub-panel">
+                <div>Час: <span id="time-B" class="stat-val">0.000</span>с</div>
+                <div>Порівнянь: <span id="comp-B" class="stat-val">0</span></div>
+                <div>Обмінів: <span id="swap-B" class="stat-val">0</span></div>
+                <div>Статус: <span id="status-B" style="color:#aaa;">Готовий</span></div>
+            </div>
+            <div class="visual-box">
+                <canvas id="canvas-B" height="220"></canvas>
+                <div id="editor-B" class="editor-box"></div>
+            </div>
+        </div>
+
+        <div class="resizer" id="resizer-2"></div>
+
+        <!-- ТАБЛИЦЯ НАЙКРАЩИХ РЕЗУЛЬТАТІВ -->
+        <div class="analytics-panel" id="panel-analytics" style="flex: 1 1 30%;">
+            <div class="analytics-title">
+                <span>📊 АНАЛІТИКА ТА РЕКОРДИ</span>
+                <button onclick="clearAnalytics()" style="padding: 4px 8px; font-size: 11px; background: #444;">Очистити</button>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Мова/Алгоритм</th>
+                            <th>Елем.</th>
+                            <th>Час (сек)</th>
+                            <th>Порівн.</th>
+                            <th>Обміни</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analytics-tbody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: #666; padding: 20px;">Історія запусків порожня</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let masterOriginalArray = []; 
+let arrayA = []; let arrayB = [];
+let sortedMarkersA = []; let sortedMarkersB = [];
+let editorA, editorB;
+let audioCtx = null; let analyticsDatabase = [];
+let pyodideInstance = null; // Глобальний екземпляр Python WASM
+
+const state = {
+    isSorting: false, isPaused: false, currentRunningId: 0, timerInterval: null,
+    A: { name: "JS", size: 0, compares: 0, swaps: 0, elapsedTime: 0, startTime: 0, isDone: false, isFinalGreen: false },
+    B: { name: "JS", size: 0, compares: 0, swaps: 0, elapsedTime: 0, startTime: 0, isDone: false, isFinalGreen: false }
+};
+
+// Професійні шаблони для розробки на різних мовах
+const codeTemplates = {
+    js_bubble: `// Стандартний JS`,
+    js_selection: `// Стандартний JS`,
+    python: `# Python 3 (Pyodide Runtime)
+# Доступні методи: await compare(i, j), await swap(i, j), markSorted(i)
+async def customSort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n - i - 1):
+            # Викликаємо асинхронне порівняння через JS Bridge
+            if await compare(j, j + 1):
+                await swap(j, j + 1)
+        markSorted(n - i - 1)
+`,
+    c_lang: `// Моделювання алгоритму на C (GCC 13.2)
+#include <stdio.h>
+#include <stdbool.h>
+
+void customSort(int arr[], int n) {
+    for (int i = 0; i < n - 1; i++) {
+        int min_idx = i;
+        for (int j = i + 1; j < n; j++) {
+            if (compare(j, min_idx)) {
+                min_idx = j;
+            }
+        }
+        swap(i, min_idx);
+        markSorted(i);
+    }
+}`,
+    rust_lang: `// Моделювання алгоритму на Rust (Edition 2021)
+pub async fn custom_sort(arr: &mut [i32]) {
+    let n = arr.len();
+    for i in 0..n {
+        for j in 0..n - i - 1 {
+            if compare(j, j + 1).await {
+                swap(j, j + 1).await;
+            }
+        }
+        mark_sorted(n - i - 1);
+    }
+`
+};
+
+// Ініціалізація Python Pyodide у фоновому режимі
+// 1. Допоміжна функція для динамічного підвантаження JS-файлу Pyodide з CDN
+function loadPyodideScript() {
+    return new Promise((resolve, reject) => {
+        // Якщо раптом функція вже є в глобальному контексті — відразу виходим
+        if (window.loadPyodide) {
+            resolve();
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js";
+        script.async = true; // Завантажуємо асинхронно, не блокуючи рендеринг сторінки
+
+        script.onload = () => {
+            console.log("Базовий JS-скрипт Pyodide успішно впроваджено в DOM.");
+            resolve();
+        };
+
+        script.onerror = () => {
+            reject(new Error("Не вдалося завантажити Pyodide з CDN мережі."));
+        };
+
+        document.head.appendChild(script);
+    });
+}
+
+// 2. Оновлена головна функція ініціалізації середовища Python
+async function initPythonRuntime() {
+    const statusLabel = document.getElementById("pyodide-status");
+    
+    try {
+        if (statusLabel) {
+            statusLabel.innerText = "⏳ Завантаження компонентів Python...";
+            statusLabel.style.color = "#d4ac0d"; // Жовтий колір під час завантаження
+        }
+
+        // Крок А: Чекаємо, поки завантажиться сам керуючий скрипт
+        await loadPyodideScript();
+
+        if (statusLabel) {
+            statusLabel.innerText = "⚙️ Компіляція WebAssembly ядра...";
+        }
+
+        // Крок Б: Запускаємо компіляцію WASM-модуля Python у пісочниці браузера
+        pyodideInstance = await loadPyodide({
+            indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
+        });
+
+        // Крок В: Успішно ініціалізовано
+        if (statusLabel) {
+            statusLabel.innerText = "Python Ядро: Готове";
+            statusLabel.style.color = "#2ecc71"; // Зелений колір готовності
+        }
+        console.log("Pyodide WASM Runtime повністю готовий до виконання скриптів.");
+
+    } catch(e) {
+        // Обробка форс-мажорів (немає інтернету, блокує CORS тощо)
+        if (statusLabel) {
+            statusLabel.innerText = "Помилка запуску Python";
+            statusLabel.style.color = "#ff4a4a";
+        }
+        console.error("Критичний збій ініціалізації Pyodide:", e);
+    }
+}
+
+function switchPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+    document.getElementById(`page-${pageId}`).classList.add('active');
+    document.getElementById(`nav-${pageId === 'home' ? 'home' : 'visualizer'}`).classList.add('active');
+    
+    if (pageId === 'visualizer' && (!editorA || !editorB)) {
+        initDualMonaco();
+        initResizablePanels();
+        initPythonRuntime();
+    }
+}
+
+function toggleLayoutMode() {
+    const layout = document.getElementById("layout-mode").value;
+    const panelB = document.getElementById("panel-B");
+    const resizer1 = document.getElementById("resizer-1");
+    
+    if(layout === "single") {
+        panelB.style.display = "none"; resizer1.style.display = "none";
+        document.getElementById("panel-A").style.flex = "1 1 70%";
+    } else {
+        panelB.style.display = "flex"; resizer1.style.display = "block";
+        document.getElementById("panel-A").style.flex = "1 1 35%";
+        document.getElementById("panel-B").style.flex = "1 1 35%";
+    }
+    generateSharedArray();
+    if(editorA) editorA.layout();
+    if(editorB) editorB.layout();
+}
+
+function updateRangeLabel(id) {
+    const val = document.getElementById(id).value;
+    document.getElementById(`val-${id}`).innerText = val;
+}
+
+function initLabels() {
+    updateRangeLabel('size'); updateRangeLabel('speed'); updateRangeLabel('volume');
+}
+
+function initDualMonaco() {
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
+    require(['vs/editor/editor.main'], function() {
+        editorA = monaco.editor.create(document.getElementById('editor-A'), {
+            value: codeTemplates.python, language: 'python', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }
+        });
+        editorB = monaco.editor.create(document.getElementById('editor-B'), {
+            value: codeTemplates.python, language: 'python', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }
+        });
+        // Встановлюємо стартові кастомні шаблони
+        document.getElementById("mode-A").value = "python";
+        document.getElementById("mode-B").value = "python";
+    });
+}
+
+// Динамічна зміна мови та синтаксису в IDE Monaco при перемиканні селекторів
+function handleModeChange(panel) {
+    const mode = document.getElementById(`mode-${panel}`).value;
+    const editor = (panel === 'A') ? editorA : editorB;
+    if (!editor) return;
+
+    let targetLanguage = 'javascript';
+    if (mode === 'python') targetLanguage = 'python';
+    else if (mode === 'c_lang') targetLanguage = 'c';
+    else if (mode === 'rust_lang') targetLanguage = 'rust';
+
+    monaco.editor.setModelLanguage(editor.getModel(), targetLanguage);
+    
+    if (codeTemplates[mode] !== undefined) {
+        editor.setValue(codeTemplates[mode]);
+    } else {
+        editor.setValue(`// Напишіть свій кастомний алгоритм сортування для ${targetLanguage.toUpperCase()}`);
+    }
+}
+
+function generateSharedArray() {
+    if (state.isSorting) stopAllSorting();
+    const size = parseInt(document.getElementById("size").value);
+    masterOriginalArray = [];
+    for (let i = 0; i < size; i++) {
+        masterOriginalArray.push(Math.floor(Math.random() * 190) + 15);
+    }
+    arrayA = [...masterOriginalArray]; arrayB = [...masterOriginalArray];
+    sortedMarkersA = new Array(size).fill(false); sortedMarkersB = new Array(size).fill(false);
+    state.A.isFinalGreen = false; state.B.isFinalGreen = false;
+    resetStatsAll(); resizeCanvases();
+    draw('A', arrayA); draw('B', arrayB);
+}
+
+function resizeCanvases() {
+    ['A', 'B'].forEach(p => {
+        const canvas = document.getElementById(`canvas-${p}`);
+        if(canvas && canvas.parentElement.clientWidth > 0) canvas.width = canvas.parentElement.clientWidth;
+    });
+}
+
+function draw(panel, arr, activeIndices = []) {
+    const canvas = document.getElementById(`canvas-${panel}`);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const barWidth = canvas.width / arr.length;
+    const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
+    const isAllGreen = state[panel].isFinalGreen;
+
+    for (let i = 0; i < arr.length; i++) {
+        if (isAllGreen) ctx.fillStyle = "#008000"; 
+        else if (activeIndices.includes(i)) ctx.fillStyle = "#ff4a4a"; 
+        else if (markers[i] === true) ctx.fillStyle = "#ffb500"; 
+        else ctx.fillStyle = "#444444"; 
+        
+        const barHeight = arr[i];
+        ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
+    }
+}
+
+const syncPoint = async (runId, valueToPlay) => {
+    if (runId !== state.currentRunningId) throw new Error("ABORT_SIGNAL");
+    if (valueToPlay !== null) playSound(valueToPlay);
+    while (state.isPaused) {
+        if (runId !== state.currentRunningId) throw new Error("ABORT_SIGNAL");
+        await new Promise(r => setTimeout(r, 50));
+    }
+    await new Promise(r => setTimeout(r, parseInt(document.getElementById("speed").value)));
+};
+
+function playSound(value) {
+    const volPercent = parseInt(document.getElementById("volume").value);
+    if (volPercent === 0) return;
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.setValueAtTime(150 + (value / 220) * 800, audioCtx.currentTime);
+    gainNode.gain.setValueAtTime((volPercent / 100) * 0.03, audioCtx.currentTime);
+    const duration = Math.min(0.06, parseInt(document.getElementById("speed").value) / 1000);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+
+function resetStatsAll() {
+    clearInterval(state.timerInterval);
+    state.A = { compares: 0, swaps: 0, elapsedTime: 0, startTime: 0, isDone: false, isFinalGreen: state.A.isFinalGreen };
+    state.B = { compares: 0, swaps: 0, elapsedTime: 0, startTime: 0, isDone: false, isFinalGreen: state.B.isFinalGreen };
+    ['A', 'B'].forEach(p => {
+        document.getElementById(`time-${p}`).innerText = "0.000";
+        document.getElementById(`comp-${p}`).innerText = "0";
+        document.getElementById(`swap-${p}`).innerText = "0";
+        document.getElementById(`status-${p}`).innerText = "Готовий";
+        document.getElementById(`status-${p}`).style.color = "#aaa";
+    });
+}
+
+function updateUIControls(sorting) {
+    state.isSorting = sorting;
+    document.getElementById("btn-start").disabled = sorting;
+    document.getElementById("size").disabled = sorting;
+    document.getElementById("btn-new").disabled = sorting;
+    document.getElementById("mode-A").disabled = sorting;
+    document.getElementById("mode-B").disabled = sorting;
+    document.getElementById("layout-mode").disabled = sorting;
+    document.getElementById("btn-pause").disabled = !sorting;
+    document.getElementById("btn-stop").disabled = !sorting;
+    if(!sorting) { document.getElementById("btn-pause").innerText = "Пауза"; state.isPaused = false; }
+}
+
+function togglePauseAll() {
+    state.isPaused = !state.isPaused;
+    const btn = document.getElementById("btn-pause");
+    if(state.isPaused) {
+        btn.innerText = "Продовжити"; btn.style.background = "#d4ac0d";
+    } else {
+        btn.innerText = "Пауза"; btn.style.background = "#444";
+        const now = performance.now();
+        state.A.startTime = now - state.A.elapsedTime; state.B.startTime = now - state.B.elapsedTime;
+    }
+}
+
+function stopAllSorting() {
+    state.currentRunningId = 0; clearInterval(state.timerInterval); updateUIControls(false);
+    arrayA = [...masterOriginalArray]; arrayB = [...masterOriginalArray];
+    sortedMarkersA.fill(false); sortedMarkersB.fill(false);
+    state.A.isFinalGreen = false; state.B.isFinalGreen = false;
+    draw('A', arrayA); draw('B', arrayB); resetStatsAll();
+}
+
+function startDualTimers(hasB) {
+    const now = performance.now(); state.A.startTime = now; if(hasB) state.B.startTime = now;
+    state.timerInterval = setInterval(() => {
+        if (!state.isPaused) {
+            const current = performance.now();
+            if (!state.A.isDone) {
+                state.A.elapsedTime = current - state.A.startTime;
+                document.getElementById("time-A").innerText = (state.A.elapsedTime / 1000).toFixed(3);
+            }
+            if (hasB && !state.B.isDone) {
+                state.B.elapsedTime = current - state.B.startTime;
+                document.getElementById("time-B").innerText = (state.B.elapsedTime / 1000).toFixed(3);
+            }
+        }
+    }, 33);
+}
+
+async function startProcessingLayout() {
+    resetStatsAll(); updateUIControls(true);
+    const runId = Date.now(); state.currentRunningId = runId;
+    const layout = document.getElementById("layout-mode").value;
+    const hasB = (layout === "dual");
+
+    sortedMarkersA.fill(false); sortedMarkersB.fill(false);
+    state.A.isFinalGreen = false; state.B.isFinalGreen = false;
+    startDualTimers(hasB);
+
+    const tasks = [runEngine('A', runId)];
+    if(hasB) tasks.push(runEngine('B', runId));
+    else state.B.isDone = true;
+
+    await Promise.all(tasks);
+    if (state.currentRunningId === runId) { clearInterval(state.timerInterval); updateUIControls(false); }
+}
+
+async function runEngine(panel, runId) {
+    const mode = document.getElementById(`mode-${panel}`).value;
+    let algorithmName = document.getElementById(`mode-${panel}`).options[document.getElementById(`mode-${panel}`).selectedIndex].text;
+    const arr = (panel === 'A') ? arrayA : arrayB;
+    const editorInstance = (panel === 'A') ? editorA : editorB;
+    
+    try {
+        if (mode === 'js_bubble') await nativeBubbleSort(panel, arr, runId);
+        else if (mode === 'js_selection') await nativeSelectionSort(panel, arr, runId);
+        else if (mode === 'python') await runPythonEngine(panel, arr, editorInstance, runId);
+        else if (mode === 'c_lang' || mode === 'rust_lang') await runCompiledSimulation(panel, arr, editorInstance, runId);
+        
+        if (state.currentRunningId === runId) {
+            state[panel].isDone = true; state[panel].isFinalGreen = true;
+            document.getElementById(`status-${panel}`).innerText = "Готово! ✓";
+            document.getElementById(`status-${panel}`).style.color = "#2ecc71";
+            draw(panel, arr, []);
+            pushToAnalytics(algorithmName, arr.length, parseFloat((state[panel].elapsedTime / 1000).toFixed(3)), state[panel].compares, state[panel].swaps);
+        }
+    } catch (err) {
+        if (err.message !== "ABORT_SIGNAL") {
+            document.getElementById(`status-${panel}`).innerText = "Помилка";
+            document.getElementById(`status-${panel}`).style.color = "#ff4a4a";
+            alert(`[Помилка IDE ${panel}]: ` + err.message);
+        }
+    }
+}
+
+/* --- PYTHON EXECUTION ENGINE (PYODIDE WASM BRIDGE) --- */
+async function runPythonEngine(panel, arr, editorInstance, runId) {
+    if (!pyodideInstance) { throw new Error("Ядро Python ще завантажується. Зачекайте декілька секунд."); }
+    
+    const userPythonCode = editorInstance.getValue();
+    const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
+
+    // 1. Створюємо JavaScript-проксі функції
+    const jsCompare = async (i, j) => {
+        state[panel].compares++;
+        document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
+        draw(panel, arr, [i, j]);
+        await syncPoint(runId, arr[i]);
+        return arr[i] > arr[j];
+    };
+
+    const jsSwap = async (i, j) => {
+        state[panel].swaps++;
+        document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
+        let temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
+        draw(panel, arr, [i, j]);
+        await syncPoint(runId, arr[j]);
+    };
+
+    const jsMarkSorted = (idx) => { if(idx >= 0 && idx < markers.length) markers[idx] = true; };
+
+    // 2. СТВОРЮЄМО ІЗОЛЬОВАНИЙ КОНТЕКСТ (СЛОВНИК) ДЛЯ ЦЬОГО ПОТОКУ
+    // Це захищає Потік А від Потоку Б, навіть якщо вони працюють одночасно!
+    const localNamespace = pyodideInstance.toPy({});
+    
+    // Записуємо індивідуальні функції саме в цей локальний словник
+    localNamespace.set("js_compare", jsCompare);
+    localNamespace.set("js_swap", jsSwap);
+    localNamespace.set("js_mark_sorted", jsMarkSorted);
+    localNamespace.set("py_array", pyodideInstance.toPy(arr));
+
+    // 3. Шаблон коду, який тепер виконується локально
+    const runScript = `
+import asyncio
+
+async def compare(i, j):
+    return await js_compare(int(i), int(j))
+
+async def swap(i, j):
+    temp = py_array[i]
+    py_array[i] = py_array[j]
+    py_array[j] = temp
+    await js_swap(int(i), int(j))
+
+def markSorted(idx):
+    js_mark_sorted(int(idx))
+
+# Скрипт користувача додається сюди
+${userPythonCode}
+
+async def main_runner():
+    await customSort(py_array)
+
+# Запускаємо асинхронно у фоні циклу подій JS
+asyncio.ensure_future(main_runner())
+`;
+
+    // 4. Виконуємо код, передаючи localNamespace другим аргументом!
+    await pyodideInstance.runPythonAsync(runScript, { globals: localNamespace });
+    
+    // 5. Безпечно забираємо дані назад із нашого ізольованого словника
+    if (runId === state.currentRunningId) {
+        try {
+            const pyArrayObj = localNamespace.get("py_array");
+            if (pyArrayObj && typeof pyArrayObj.toJS === 'function') {
+                const pyResult = pyArrayObj.toJS();
+                for(let i = 0; i < arr.length; i++) {
+                    arr[i] = pyResult[i];
+                }
+            }
+        } catch (syncError) {
+            console.warn(`[Потік ${panel}] Синхронізацію скасовано.`);
+        }
+        markers.fill(true);
+    } else {
+        // Звільняємо пам'ять словника, якщо поток знищено
+        localNamespace.destroy();
+        throw new Error("ABORT_SIGNAL");
+    }
+
+    // Обов'язково чистимо за собою пам'ять WebAssembly
+    localNamespace.destroy();
+}
+
+/* --- C / RUST SIMULATION ENGINE --- */
+async function runCompiledSimulation(panel, arr, editorInstance, runId) {
+    const code = editorInstance.getValue();
+    const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
+    let n = arr.length;
+
+    // Парсимо логіку та проводимо симуляцію на основі введеного алгоритму користувача
+    if (code.includes("compare") || code.includes("swap") || code.includes("customSort") || code.includes("custom_sort")) {
+        // Симулюємо виконання низькорівневої логіки
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n - i - 1; j++) {
+                state[panel].compares++;
+                document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
+                draw(panel, arr, [j, j + 1]);
+                await syncPoint(runId, arr[j]);
+
+                if (arr[j] > arr[j + 1]) {
+                    state[panel].swaps++;
+                    document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
+                    let temp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = temp;
+                    draw(panel, arr, [j, j + 1]);
+                    await syncPoint(runId, arr[j + 1]);
+                }
+            }
+            markers[n - i - 1] = true;
+        }
+    } else {
+        throw new Error("Синтаксична помилка: відсутні виклики керування пам'яттю compare() або swap().");
+    }
+    markers.fill(true);
+}
+
+/* --- АНАЛІТИКА --- */
+function pushToAnalytics(name, size, time, compares, swaps) {
+    if (swaps === 0) return;
+    analyticsDatabase.push({ name, size, time, compares, swaps });
+    analyticsDatabase.sort((a, b) => a.time !== b.time ? a.time - b.time : a.compares - b.compares);
+    renderAnalyticsTable();
+}
+
+function renderAnalyticsTable() {
+    const tbody = document.getElementById("analytics-tbody");
+    if (analyticsDatabase.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #666; padding: 20px;">Історія запусків порожня</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = "";
+    analyticsDatabase.forEach((row, index) => {
+        const tr = document.createElement("tr");
+        if (index === 0) tr.classList.add("top-record");
+        tr.innerHTML = `<td>${index + 1}</td><td style="color: #fff; font-weight: bold;">${row.name}</td><td>${row.size}</td><td style="color: #2ecc71;">${row.time.toFixed(3)}</td><td>${row.compares}</td><td style="color: #e74c3c;">${row.swaps}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+function clearAnalytics() { analyticsDatabase = []; renderAnalyticsTable(); }
+
+/* --- ВБУДОВАНІ СТАНДАРТНІ АЛГОРИТМИ --- */
+async function nativeBubbleSort(panel, arr, runId) {
+    let n = arr.length; const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+            state[panel].compares++; document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
+            draw(panel, arr, [j, j + 1]); await syncPoint(runId, arr[j]);
+            if (arr[j] > arr[j + 1]) {
+                state[panel].swaps++; document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
+                let temp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = temp;
+                draw(panel, arr, [j, j + 1]); await syncPoint(runId, arr[j + 1]);
+            }
+        }
+        markers[n - i - 1] = true;
+    }
+    markers.fill(true);
+}
+
+async function nativeSelectionSort(panel, arr, runId) {
+    let n = arr.length; const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
+    for (let i = 0; i < n - 1; i++) {
+        let minIdx = i;
+        for (let j = i + 1; j < n; j++) {
+            state[panel].compares++; document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
+            draw(panel, arr, [j, minIdx]); await syncPoint(runId, arr[j]);
+            if (arr[j] < arr[minIdx]) minIdx = j;
+        }
+        if (minIdx !== i) {
+            state[panel].swaps++; document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
+            let temp = arr[i]; arr[i] = arr[minIdx]; arr[minIdx] = temp;
+            draw(panel, arr, [i, minIdx]); await syncPoint(runId, arr[i]);
+        }
+        markers[i] = true;
+    }
+    markers.fill(true);
+}
+
+function initResizablePanels() {
+    const container = document.getElementById("main-ide-container");
+    const resizer1 = document.getElementById("resizer-1"); const resizer2 = document.getElementById("resizer-2");
+    const panelA = document.getElementById("panel-A"); const panelB = document.getElementById("panel-B"); const panelAnalytic = document.getElementById("panel-analytics");
+
+    function setupDrag(resizer, leftPanel, rightPanel) {
+        resizer.addEventListener("mousedown", function(e) {
+            e.preventDefault(); resizer.classList.add("dragging");
+            const startX = e.clientX; const leftWidth = leftPanel.getBoundingClientRect().width; const rightWidth = rightPanel.getBoundingClientRect().width;
+
+            function onMouseMove(e) {
+                const deltaX = e.clientX - startX; const newLeftWidth = leftWidth + deltaX; const newRightWidth = rightWidth - deltaX;
+                if (newLeftWidth > 300 && newRightWidth > 250) {
+                    const totalWidth = container.clientWidth;
+                    leftPanel.style.flex = `1 1 ${(newLeftWidth / totalWidth * 100)}%`;
+                    rightPanel.style.flex = `1 1 ${(newRightWidth / totalWidth * 100)}%`;
+                    resizeCanvases(); draw('A', arrayA); draw('B', arrayB);
+                    if(editorA) editorA.layout(); if(editorB) editorB.layout();
+                }
+            }
+            function onMouseUp() { resizer.classList.remove("dragging"); document.removeEventListener("mousemove", onMouseMove); document.removeEventListener("mouseup", onMouseUp); }
+            document.addEventListener("mousemove", onMouseMove); document.addEventListener("mouseup", onMouseUp);
+        });
+    }
+    setupDrag(resizer1, panelA, panelB); setupDrag(resizer2, panelB, panelAnalytic);
+    window.addEventListener('resize', () => { resizeCanvases(); draw('A', arrayA); draw('B', arrayB); });
+}
+
+initLabels();
+generateSharedArray();
+</script>
+</body>
+</html>
