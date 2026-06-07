@@ -369,8 +369,38 @@ const state = {
 
 // Професійні шаблони для розробки на різних мовах
 const codeTemplates = {
-    js_bubble: `// Стандартний JS`,
-    js_selection: `// Стандартний JS`,
+ js_bubble: `async function customSort(arr) {
+    const n = arr.length;
+
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+            if (await compare(j, j + 1)) {
+                await swap(j, j + 1);
+            }
+        }
+        markSorted(n - i - 1);
+    }
+}`,
+    
+    js_selection: `async function customSort(arr) {
+    const n = arr.length;
+
+    for (let i = 0; i < n - 1; i++) {
+        let min = i;
+
+        for (let j = i + 1; j < n; j++) {
+            if (await compare(min, j)) {
+                min = j;
+            }
+        }
+
+        if (min !== i) {
+            await swap(i, min);
+        }
+
+        markSorted(i);
+    }
+}`,
     python: `# Python 3 (Pyodide Runtime)
 # Доступні методи: await compare(i, j), await swap(i, j), markSorted(i)
 async def customSort(arr):
@@ -705,11 +735,15 @@ async function runEngine(panel, runId) {
     const editorInstance = (panel === 'A') ? editorA : editorB;
     
     try {
-        if (mode === 'js_bubble') await nativeBubbleSort(panel, arr, runId);
-        else if (mode === 'js_selection') await nativeSelectionSort(panel, arr, runId);
-        else if (mode === 'python') await runPythonEngine(panel, arr, editorInstance, runId);
-        else if (mode === 'c_lang' || mode === 'rust_lang') await runCompiledSimulation(panel, arr, editorInstance, runId);
-        
+if (mode === 'js_bubble' || mode === 'js_selection') {
+    await runUserJavaScript(panel, arr, editorInstance, runId);
+}
+else if (mode === 'python') {
+    await runPythonEngine(panel, arr, editorInstance, runId);
+}
+else if (mode === 'c_lang' || mode === 'rust_lang') {
+    await runCompiledSimulation(panel, arr, editorInstance, runId);
+} 
         if (state.currentRunningId === runId) {
             state[panel].isDone = true; state[panel].isFinalGreen = true;
             document.getElementById(`status-${panel}`).innerText = "Готово! ✓";
@@ -872,40 +906,46 @@ function renderAnalyticsTable() {
 
 function clearAnalytics() { analyticsDatabase = []; renderAnalyticsTable(); }
 
-/* --- ВБУДОВАНІ СТАНДАРТНІ АЛГОРИТМИ --- */
-async function nativeBubbleSort(panel, arr, runId) {
-    let n = arr.length; const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
-    for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n - i - 1; j++) {
-            state[panel].compares++; document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
-            draw(panel, arr, [j, j + 1]); await syncPoint(runId, arr[j]);
-            if (arr[j] > arr[j + 1]) {
-                state[panel].swaps++; document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
-                let temp = arr[j]; arr[j] = arr[j + 1]; arr[j + 1] = temp;
-                draw(panel, arr, [j, j + 1]); await syncPoint(runId, arr[j + 1]);
-            }
-        }
-        markers[n - i - 1] = true;
-    }
-    markers.fill(true);
-}
+async function runUserJavaScript(panel, arr, editorInstance, runId) {
+    const markers = panel === 'A' ? sortedMarkersA : sortedMarkersB;
 
-async function nativeSelectionSort(panel, arr, runId) {
-    let n = arr.length; const markers = (panel === 'A') ? sortedMarkersA : sortedMarkersB;
-    for (let i = 0; i < n - 1; i++) {
-        let minIdx = i;
-        for (let j = i + 1; j < n; j++) {
-            state[panel].compares++; document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
-            draw(panel, arr, [j, minIdx]); await syncPoint(runId, arr[j]);
-            if (arr[j] < arr[minIdx]) minIdx = j;
+    const compare = async (i, j) => {
+        state[panel].compares++;
+        document.getElementById(`comp-${panel}`).innerText = state[panel].compares;
+
+        draw(panel, arr, [i, j]);
+        await syncPoint(runId, arr[i]);
+
+        return arr[i] > arr[j];
+    };
+
+    const swap = async (i, j) => {
+        state[panel].swaps++;
+        document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
+
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+
+        draw(panel, arr, [i, j]);
+        await syncPoint(runId, arr[j]);
+    };
+
+    const markSorted = (i) => {
+        if (i >= 0 && i < markers.length) {
+            markers[i] = true;
         }
-        if (minIdx !== i) {
-            state[panel].swaps++; document.getElementById(`swap-${panel}`).innerText = state[panel].swaps;
-            let temp = arr[i]; arr[i] = arr[minIdx]; arr[minIdx] = temp;
-            draw(panel, arr, [i, minIdx]); await syncPoint(runId, arr[i]);
-        }
-        markers[i] = true;
-    }
+    };
+
+    const userCode = editorInstance.getValue();
+
+    const fn = new Function(`
+        return async (arr, compare, swap, markSorted) => {
+            ${userCode}
+            await customSort(arr);
+        };
+    `)();
+
+    await fn(arr, compare, swap, markSorted);
+
     markers.fill(true);
 }
 
@@ -921,7 +961,7 @@ function initResizablePanels() {
 
             function onMouseMove(e) {
                 const deltaX = e.clientX - startX; const newLeftWidth = leftWidth + deltaX; const newRightWidth = rightWidth - deltaX;
-                if (newLeftWidth > 300 && newRightWidth > 250) {
+                if (newLeftWidth > 100 && newRightWidth > 250) {
                     const totalWidth = container.clientWidth;
                     leftPanel.style.flex = `1 1 ${(newLeftWidth / totalWidth * 100)}%`;
                     rightPanel.style.flex = `1 1 ${(newRightWidth / totalWidth * 100)}%`;
